@@ -1,0 +1,5 @@
+# NUNCA subir secretos ni ficheros locales
+.env
+.alerted.json
+node_modules/
+npm-debug.log

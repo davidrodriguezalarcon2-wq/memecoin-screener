@@ -1,0 +1,14 @@
+{
+  "name": "memecoin-screener",
+  "version": "0.1.0",
+  "description": "Screener de memecoins en Solana: filtra rugs y rankea momentum temprano. NO es asesoramiento financiero.",
+  "main": "screener.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node screener.js",
+    "watch": "node screener.js --watch",
+    "json": "node screener.js --json"
+  },
+  "engines": { "node": ">=18" },
+  "license": "MIT"
+}
