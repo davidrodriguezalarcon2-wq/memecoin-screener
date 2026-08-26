@@ -14,8 +14,8 @@
 const cfg = require('./config');
 const { fetchNewTokenAddresses, fetchPairsForTokens, bestPairPerToken, fetchRugCheck } = require('./sources');
 const { passesFilters, scoreMomentum, ageMinutes } = require('./scoring');
-const { maybeAlert } = require('./alerts');
-const { saveCandidates } = require('./db');
+const { maybeAlert, sendAlert } = require('./alerts');
+const { saveCandidates, getAlertableMints, markAlerted } = require('./db');
 
 const asJSON = process.argv.includes('--json');
 const watch = process.argv.includes('--watch');
@@ -114,9 +114,39 @@ async function main() {
     return [];
   });
 
-  // Dispara alertas y persiste en Supabase sobre la lista COMPLETA (no solo la recortada para mostrar).
-  await maybeAlert(cfg, all).catch((e) => console.error('Error en alertas:', e.message));
-  await saveCandidates(cfg, all).catch((e) => console.error('Error guardando en Supabase:', e.message));
+  const supaOn = !!(cfg.supabase?.enabled && cfg.supabase.url && cfg.supabase.serviceKey);
+
+  // 1) Guardar en Supabase primero (insert-once por mint). Necesario antes de alertar
+  //    con dedup, porque el anti-spam consulta el estado 'alerted' de esas filas.
+  if (supaOn) {
+    await saveCandidates(cfg, all)
+      .then((n) => { if (n && !asJSON) console.log(`💾 ${n} candidatos enviados a Supabase.`); })
+      .catch((e) => console.error('Error guardando en Supabase:', e.message));
+  }
+
+  // 2) Alertas.
+  if (cfg.alerts?.enabled) {
+    if (supaOn) {
+      // Anti-spam persistente vía Supabase (sobrevive entre ejecuciones del cron).
+      const highScore = all.filter((c) => c.score >= (cfg.alerts.minScore ?? 75));
+      if (highScore.length) {
+        try {
+          const alertable = new Set(await getAlertableMints(cfg, highScore.map((c) => c.mint)));
+          const toSend = highScore.filter((c) => alertable.has(c.mint));
+          for (const c of toSend) {
+            await sendAlert(cfg, c);
+            if (!asJSON) console.log(`🔔 Alerta enviada: $${c.symbol} (score ${c.score})`);
+          }
+          if (toSend.length) await markAlerted(cfg, toSend.map((c) => c.mint));
+        } catch (e) {
+          console.error('Error en alertas (Supabase):', e.message);
+        }
+      }
+    } else {
+      // Respaldo local (archivo .alerted.json) cuando Supabase está desactivado.
+      await maybeAlert(cfg, all).catch((e) => console.error('Error en alertas:', e.message));
+    }
+  }
 
   const rows = all.slice(0, cfg.run.maxResults);
   if (asJSON) console.log(JSON.stringify(rows, null, 2));

@@ -101,4 +101,4 @@ async function maybeAlert(cfg, candidates) {
   return sent;
 }
 
-module.exports = { maybeAlert, formatMessage };
+module.exports = { maybeAlert, formatMessage, sendAlert: sendRich };
