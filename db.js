@@ -91,4 +91,14 @@ async function markAlerted(cfg, mints) {
   if (!res.ok) throw new Error(`Supabase markAlerted HTTP ${res.status}: ${await res.text()}`);
 }
 
-module.exports = { saveCandidates, getPending, updateOutcome, getAlertableMints, markAlerted, ready };
+// Tokens detectados dentro de la ventana de seguimiento (para rastrear su pico).
+async function getTrackable(cfg, hours) {
+  if (!ready(cfg)) return [];
+  const cutoff = new Date(Date.now() - hours * 3600000).toISOString();
+  const url = `${base(cfg)}?select=mint,entry_price,peak_price&detected_at=gt.${encodeURIComponent(cutoff)}`;
+  const res = await fetch(url, { headers: headers(cfg) });
+  if (!res.ok) throw new Error(`Supabase getTrackable HTTP ${res.status}: ${await res.text()}`);
+  return res.json();
+}
+
+module.exports = { saveCandidates, getPending, updateOutcome, getAlertableMints, markAlerted, getTrackable, ready };

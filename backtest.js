@@ -16,6 +16,11 @@ const { fetchPairsForTokens, bestPairPerToken } = require('./sources');
 function classifyOutcome(row, current, bt) {
   // Sin par actual = liquidez desaparecida / deslistado -> rug.
   if (!current) {
+    const peak = Number(row.peak_gain_pct);
+    // Si llegó a pumpear antes de morir, cuenta como pump (dio oportunidad real).
+    if (isFinite(peak) && peak >= bt.pumpGainPct) {
+      return { outcome: 'pump', last_price: 0, current_liq_usd: 0, max_gain_pct: Math.round(peak) };
+    }
     return { outcome: 'rug', last_price: 0, current_liq_usd: 0, max_gain_pct: -100 };
   }
   const entryPrice = Number(row.entry_price) || 0;
@@ -23,14 +28,18 @@ function classifyOutcome(row, current, bt) {
   const curLiq = current.liquidity?.usd ?? 0;
   const gain = entryPrice > 0 ? ((curPrice - entryPrice) / entryPrice) * 100 : 0;
 
+  // El "mejor" resultado es el pico alcanzado (si se rastreó), no solo el precio de ahora.
+  const peakGain = Number(row.peak_gain_pct);
+  const bestGain = isFinite(peakGain) ? Math.max(gain, peakGain) : gain;
+
   const rugFloor = Math.max(bt.rugLiqFloorUsd, (Number(row.entry_liq_usd) || 0) * (bt.rugLiqFloorPct / 100));
   let outcome;
-  if (curLiq < rugFloor) outcome = 'rug';
-  else if (gain >= bt.pumpGainPct) outcome = 'pump';
+  if (bestGain >= bt.pumpGainPct) outcome = 'pump';   // tocó el objetivo en algún momento
+  else if (curLiq < rugFloor) outcome = 'rug';
   else if (gain <= bt.deadLossPct) outcome = 'dead';
   else outcome = 'flat';
 
-  return { outcome, last_price: curPrice, current_liq_usd: Math.round(curLiq), max_gain_pct: Math.round(gain) };
+  return { outcome, last_price: curPrice, current_liq_usd: Math.round(curLiq), max_gain_pct: Math.round(bestGain) };
 }
 
 function bucketOf(score) {

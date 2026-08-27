@@ -16,6 +16,7 @@ const { fetchNewTokenAddresses, fetchPairsForTokens, bestPairPerToken, fetchRugC
 const { passesFilters, scoreMomentum, ageMinutes } = require('./scoring');
 const { maybeAlert, sendAlert } = require('./alerts');
 const { saveCandidates, getAlertableMints, markAlerted } = require('./db');
+const { trackPeaks } = require('./peaks');
 
 const asJSON = process.argv.includes('--json');
 const watch = process.argv.includes('--watch');
@@ -151,6 +152,13 @@ async function main() {
   const rows = all.slice(0, cfg.run.maxResults);
   if (asJSON) console.log(JSON.stringify(rows, null, 2));
   else printTable(rows);
+
+  // Rastrea el pico de los tokens en seguimiento (para un backtest honesto).
+  if (supaOn) {
+    await trackPeaks(cfg)
+      .then((n) => { if (n && !asJSON) console.log(`📈 ${n} picos actualizados.`); })
+      .catch((e) => console.error('Error rastreando picos:', e.message));
+  }
 }
 
 if (watch) {

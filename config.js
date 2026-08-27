@@ -70,4 +70,12 @@ module.exports = {
     pumpGainPct: 100,     // ganancia >= +100% (2x) cuenta como "pump"
     deadLossPct: -80,     // pérdida <= -80% cuenta como "muerto"
   },
+
+  // ---- SEGUIMIENTO DEL PICO ----
+  // En cada pasada, re-consulta el precio de los tokens detectados en esta ventana
+  // y actualiza su máximo si ha subido. Da un backtest honesto (captura el pico real).
+  peaks: {
+    enabled: true,
+    trackHours: 24, // sigue rastreando el pico durante 24h desde la detección
+  },
 };
